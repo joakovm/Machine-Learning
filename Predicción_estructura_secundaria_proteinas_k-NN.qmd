@@ -1,0 +1,64 @@
+---
+title: "PEC 1: Predicción de la estructura secundaria de proteínas mediante k-NN"
+author: "Joaquín Villegas"
+format: pdf
+editor: visual
+---
+
+## Predicción de la estructura secundaria de proteínas mediante k-NN
+
+### Introducción
+
+La predicción de la estructura secundaria de proteínas es un problema que a dia de hoy sigue sin resolverse. La estructura de las proteínas está estrechamente relacionada con su función biológica y conocerla de forma precisa nos permite acercarnos a entender el funcionamiento de la misma. Asi como ser capaces de modular su acción, ya sea inhibiendola o estimulandola, siendo este uno de los objetivos principales del diseño de fármacos (drug design) y optimización de enzimas convirtiendo asi el estudio de la estructura proteica en un área de estudio tan relevante en la industria farmacológica y biotecnológica.
+
+Existen varias herramientas para el estudio de la estructura de las proteínas, uno de los enfoques más prometedores a dia de hoy está basado en aprendizaje automático (machine learning). Siendo un hito el lanzamiento de AlphaFold, una platatorma que predice, y da índices de fiabilidad por aminoácidos, la estructura 3D de proteínas a partir de su estructura primaria (la secuencia de aminoácidos).
+
+La herramienta de aprendizaje automático que hemos utilizado en este estudio para abordar la predicción de la estructura secundaria a partir de la secuencia de aminoácidos es el algoritmo k-NN (**RESUMIR A NIVEL CONCEPTUAL Y RELACIONARLO CON EL OBJETIVO ESPECÍFICO)**
+
+### Datos
+
+Los datos han sido obtenidos del repositorio de machine learning UC Irvine, Molecular Biology (Protein Secondary Structure) y provienen del repositorio connectionist bench del CMU. Los datos de las secuencias se presentan en ventanas deslizantes, teniendo cada instancia 17 ventanas con aminoacidos.
+
+### Métodos
+
+El método k-nn es un método que utiliza las distancias entre instancias para clasificar esa instancia en una clase determinada. Por ello, debemos realizar una transformación categórica de los aminoácidos de tal forma que se genere una matriz de datos de 0 y 1 donde cada instancia será una matriz de 17x20 **(el número de aminoácidos de una ventana deslizante x el número de aminoácidos). Esta es conocida como one-hot encode y es el primer paso para llevar a cabo un estudio de k-nn cuando las variables son categóricas.**
+
+```{r}
+datos<-read.csv2("data4.csv", header = TRUE)
+X<-datos[,-18]
+y<-factor(datos[,18], levels = c("_", "e", "h"), labels = c("coil", "Bsheet", "Ahelix"))
+```
+
+```{r}
+#| message: false
+#| warning: false
+if(!require(caret)){
+  install.packages("caret")
+  library(caret)
+}
+```
+
+```{r}
+amino_acidos <- c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
+X[] <- lapply(X, function(x) factor(x, levels = amino_acidos))
+dmy <- dummyVars(" ~ .", data = X)
+Xoh <-data.frame(predict(dmy, newdata = X))
+```
+
+```{r}
+table(y)
+```
+
+#### Algoritmo
+
+#### Diseño experimental
+
+#### Métricas de evaluación
+
+### Resultados
+
+### Discusión
+
+### Conclusiones
+
+### Referencias
