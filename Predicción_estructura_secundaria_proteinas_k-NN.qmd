@@ -1,11 +1,43 @@
 ---
-title: "PEC 1: Predicción de la estructura secundaria de proteínas mediante k-NN"
+title: "Predicción de la estructura secundaria de proteínas mediante k-NN"
 author: "Joaquín Villegas"
-format: pdf
+format: 
+  pdf:
+    toc: true
+    toc-depth: 4
+    toc-title: "Tabla de contenidos"
+    number-sections: true
+    highlight: textmate
+execute:
+  echo: false
+  warning: false
+  message: false
+  cache: true
+  tidy: true
+  eval: true
 editor: visual
+bibliography: referencias.bib
 ---
 
 ## Predicción de la estructura secundaria de proteínas mediante k-NN
+
+```{r}
+library(dplyr)
+library(kableExtra)
+if(!require(caret)){
+install.packages("caret")
+library(caret)
+}
+if(!require(ROCR)){
+install.packages("ROCR")
+library(ROCR)
+}
+if(!require(pROC)){
+install.packages("pRCC")
+library(ROC)
+}
+library(ggplot2)
+```
 
 ### Introducción
 
@@ -13,15 +45,11 @@ La predicción de la estructura secundaria de proteínas es un problema que a di
 
 Existen varias herramientas para el estudio de la estructura de las proteínas, uno de los enfoques más prometedores a dia de hoy está basado en aprendizaje automático (machine learning). Siendo un hito el lanzamiento de AlphaFold, una platatorma que predice, y da índices de fiabilidad por aminoácidos, la estructura 3D de proteínas a partir de su estructura primaria (la secuencia de aminoácidos).
 
-La herramienta de aprendizaje automático que hemos utilizado en este estudio para abordar la predicción de la estructura secundaria a partir de la secuencia de aminoácidos es el algoritmo k-NN (**RESUMIR A NIVEL CONCEPTUAL Y RELACIONARLO CON EL OBJETIVO ESPECÍFICO)**
+La herramienta de aprendizaje automático que hemos utilizado en este estudio para abordar la predicción de la estructura secundaria a partir de la secuencia de aminoácidos es el algoritmo k-NN, que clasificará la estructura proteíca secundaria de nuevas secuencias tomando como referencia las k instancias que se aproximen con mayor similitud a la secuencia de aminoácidos nueva. A diferencia de otros algoritmos de machine learning este modelo no aprende nada por eso es llamado lazy learner. A pesar de la simplicidad del modelo sigue siendo muy utilizado a dia de hoy.
 
 ### Datos
 
 Los datos han sido obtenidos del repositorio de machine learning UC Irvine, Molecular Biology (Protein Secondary Structure) y provienen del repositorio connectionist bench del CMU. Los datos de las secuencias se presentan en ventanas deslizantes, teniendo cada instancia 17 ventanas con aminoacidos.
-
-### Métodos
-
-El método k-nn es un método que utiliza las distancias entre instancias para clasificar esa instancia en una clase determinada. Por ello, debemos realizar una transformación categórica de los aminoácidos de tal forma que se genere una matriz de datos de 0 y 1 donde cada instancia será una matriz de 17x20 **(el número de aminoácidos de una ventana deslizante x el número de aminoácidos). Esta es conocida como one-hot encode y es el primer paso para llevar a cabo un estudio de k-nn cuando las variables son categóricas.**
 
 ```{r}
 datos<-read.csv2("data4.csv", header = TRUE)
@@ -29,14 +57,9 @@ X<-datos[,-18]
 y<-factor(datos[,18], levels = c("_", "e", "h"), labels = c("coil", "Bsheet", "Ahelix"))
 ```
 
-```{r}
-#| message: false
-#| warning: false
-if(!require(caret)){
-  install.packages("caret")
-  library(caret)
-}
-```
+Deberemos realizar una transformación categórica de los aminoácidos de tal forma que se genere una matriz de datos de 0 y 1 donde cada instancia será una matriz de 17x20 generando así 340 columnas (@tbl-resultados_one-hot_encoding). Antes de utilizar el one-hot encoding method (generando variables dummy o variables indicadoras) separamos la variable respuesta/independiente de la variables dependientes y usamos la libreria caret.
+
+Factorizamos los aminoácidos por si existe algún aminoácido el cual no aparece en las secuencias obtenidas evitar que el one-hot encoding ignore ese aminoácido/variable.
 
 ```{r}
 amino_acidos <- c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
@@ -46,8 +69,23 @@ Xoh <-data.frame(predict(dmy, newdata = X))
 ```
 
 ```{r}
+#| label: tbl-resultados_one-hot_encoding
+#| tbl-cap: "Resultado de los datos tras el One-hot encode"
 table(y)
+kable(head(Xoh[, 1:20]))
 ```
+
+### Métodos
+
+#### Algoritmo
+
+El método k-nn es un método que utiliza las similitud entre instancias para clasificar esa instancia en una clase determinada. El algoritmo que vamos a utilizar trata las instancias como coordenadas en un espacio de dos dimensiones. La distancia entre dos puntos o dos instancias vienen dada por una función de distancia, la más usada y la utilizada en este ensayo es la distancia euclideana.
+
+Es necesario determinar el número de puntos (k) a tener en cuenta para clasificar una nueva instancia. La elección de un k óptimo es un punto clave para determinar la calidad de nuestro modelo, suponiendo un reto hallar el equilibrio entre sobreajustar (generalmente cuando la k es muy pequeña) o generar un modelo que generalice demasiado (con una k demasiado grande) (bias-variance tradeoff).
+
+#### Diseño experimental
+
+Particionamos los datos en trainx, trainy, testx, testy mediante la función createDataPartition del paquete caret indicando que el 70% de los datos sean el train y el 30% el test. La elección de estos parámetros busca proporcionar suficientes datos para que el modelo aprenda los patrones y una procentaje representativo para validar la capacidad del modelo. Para generar nuestro modelo también usaremos la herramienta "cross validation" que nos permite dividir nuestros datos de entrenamiento en k pliegues (10 en nuestro caso, el estándar) y de tal forma que el modelo aprende con k-1 pliegues y lo enfrenta al pliegue restante. El proceso se hace de forma iterativa rotando sucesivamente los k-1 pliegues y el pliegue restante.
 
 ```{r}
 set.seed(143)
@@ -58,39 +96,97 @@ trainy <- y[trainIndex]
 testy <- y[-trainIndex]
 ```
 
-#### Algoritmo
-
 ```{r}
-#| message: false
-#| warning: false
-if(!require(class)){
-  install.packages("class")
-  library(class)
-}
+control<-trainControl(method="cv", number=10, classProbs = TRUE)
+modelo <- train(x=trainX, y=trainy, method = "knn", trControl = control, tuneGrid = data.frame(k = c(1, 3, 5)))
 ```
 
-```{r}
-prediction<-knn(train=trainX, test=testX, cl=trainy, k=1)
-```
-
-#### Diseño experimental
+Hemos probado tres valores diferentes de k (1, 3 y 5) puesto que el algoritmo knn suele alcanzar un equilibrio óptimo a valores más pequeños de k, obteniendo un rendimiento mayor a k=1. Para evitar que el modelo obtenga valores igualados de dos clases diferentes se tiende a usar valores impares.
 
 #### Métricas de evaluación
 
-```{r}
-#| message: false
-#| warning: false
-if(!require(gmodels)){
-  install.packages("gmodels")
-  library(gmodels)
-}
-```
+Con el fin de evaluar el modelo y calcular su rendimiento se empleó una matriz de confusión la cual permite desglosar los valores reales (filas) frente a los valores predichos (columnas) @tbl-resultados_matriz_confusion). A partir de esta matriz se derivan métricas específicas de clase como son la sensibilidad, especificidad, precisión y recall para entender si nuestro modelo sufre más (comete más errores) a la hora de clasificar instancias en ciertas clases (@tbl-resultados_metricas_clases). Además de métricas globales como el ratio de aciertos del modelo (accuracy) y el ratio de error que permiten evaluar el modelo de forma general (@tbl-resultados_estadísticos).
+
+También se utilizó el estadístico Kappa, útil cuando las clases están desbalanceadas puesto que evalúa la eficacia del modelo restando el efecto del azar (@tbl-resultados_estadísticos).
 
 ```{r}
-CrossTable(x = testy, y = prediction, prop.chisq = FALSE)
+#| label: tbl-resultados_matriz_confusion
+#| tbl-cap: "Matriz de confusiónn"
+mis_predicciones <- predict(modelo, newdata = testX)
+cm<-confusionMatrix(mis_predicciones, testy, mode = "everything")
+head(cm$table) %>%
+kableExtra::kable() %>%
+kableExtra::kable_styling()
 ```
+
+Complementariamente, se generaron diagramas ROC para visualizar la relación entre la tasa de verdaderos positivos y falsos positivos a distintos umbrales (@fig-grafico) El rendimiento de los modelos puede medirse mediante el estadístico AUC (area under the ROC curve) con rangos desde 0.5 (sin capacidad de predicción) a 1 (clasificador perfecto) (@tbl-resultados_estadísticos).
 
 ### Resultados
+
+```{r}
+#| label: tbl-resultados_metricas_clases
+#| tbl-cap: "Resumen de métricas por clase del Modelo k-NN"
+head(t(cm$byClass)) %>%
+kableExtra::kable() %>%
+kableExtra::kable_styling()
+```
+
+```{r}
+probs <- predict(modelo, newdata = testX, type = "prob")
+```
+
+```{r}
+#| include: false
+roc_multi <- multiclass.roc(testy, probs)
+print(roc_multi$auc)
+```
+
+```{r}
+#| label: tbl-resultados_estadísticos
+#| tbl-cap: "Resumen de Estadísticos del Modelo k-NN"
+stats1 <- cm$overall[c("Accuracy", "Kappa")]
+auc<- as.numeric(roc_multi$auc)
+stats_resumen<-as.data.frame(c(stats1, "AUC Multiclase"=auc))
+stats_resumen %>%
+kableExtra::kable(
+    col.names = (c("Estadísticos", "Valores")),
+    align = "c") %>%
+kableExtra::kable_styling()
+```
+
+```{r}
+#| label: fig-grafico
+#| fig-cap: "Analisis ROC Multiclase (1vs1)"
+# 1. 'Aplanamos' la lista para que ggroc pueda leerla
+lista_plana <- lapply(roc_multi$rocs, function(x) x[[1]])
+
+# 2. Ahora sí, usamos ggroc
+g <- ggroc(lista_plana)
+
+# 3. Graficamos con estilo profesional
+g + 
+  theme_minimal() + 
+  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey") +
+  labs(title = "Análisis ROC Multiclase (One-vs-One)",
+       x = "Especificidad",
+       y = "Sensibilidad",
+       color = "Comparativa")
+```
+
+```{r}
+# Usamos un bucle para calcular el AUC de cada par
+aucs_individuales <- lapply(roc_multi$rocs, function(x) {
+  auc(x[[1]])
+})
+
+# Le ponemos nombres para que sepas cuál es cuál
+names(aucs_individuales) <- names(roc_multi$rocs)
+
+# Ver los resultados
+kable(table(aucs_individuales))
+```
+
+###  
 
 ### Discusión
 
