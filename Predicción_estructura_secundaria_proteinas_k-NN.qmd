@@ -1,5 +1,5 @@
 ---
-title: "Predicción de la estructura secundaria de proteínas mediante k-NN"
+title: "Protein_Secondary_Structure_Prediction_K-NN"
 author: "Joaquín Villegas"
 format: 
   pdf:
@@ -17,6 +17,7 @@ execute:
   eval: true
 editor: visual
 bibliography: referencias.bib
+csl: bioinformatics.csl
 ---
 
 ## Predicción de la estructura secundaria de proteínas mediante k-NN
@@ -41,11 +42,11 @@ library(ggplot2)
 
 ### Introducción
 
-La predicción de la estructura secundaria de proteínas es un problema que a dia de hoy sigue sin resolverse. La estructura de las proteínas está estrechamente relacionada con su función biológica y conocerla de forma precisa nos permite acercarnos a entender el funcionamiento de la misma. Asi como ser capaces de modular su acción, ya sea inhibiendola o estimulandola, siendo este uno de los objetivos principales del diseño de fármacos (drug design) y optimización de enzimas convirtiendo asi el estudio de la estructura proteica en un área de estudio tan relevante en la industria farmacológica y biotecnológica.
+La predicción de la estructura secundaria de proteínas es un problema que a dia de hoy sigue sin resolverse. La estructura de las proteínas está estrechamente relacionada con su función biológica y conocerla de forma precisa nos permite acercarnos a entender el funcionamiento de la misma. Asi como ser capaces de modular su acción, ya sea inhibiéndola o estimulándola, siendo este uno de los objetivos principales del diseño de fármacos (drug design) y optimización de enzimas convirtiendo asi el estudio de la estructura proteica en un área de estudio tan relevante en la industria farmacológica y biotecnológica.
 
-Existen varias herramientas para el estudio de la estructura de las proteínas, uno de los enfoques más prometedores a dia de hoy está basado en aprendizaje automático (machine learning). Siendo un hito el lanzamiento de AlphaFold, una platatorma que predice, y da índices de fiabilidad por aminoácidos, la estructura 3D de proteínas a partir de su estructura primaria (la secuencia de aminoácidos).
+Existen varias herramientas para el estudio de la estructura de las proteínas, uno de los enfoques más prometedores de la actualidad está basado en aprendizaje automático (machine learning). Siendo un hito el lanzamiento de AlphaFold, una plataforma que predice, y da índices de fiabilidad por aminoácidos, la estructura 3D de proteínas a partir de su estructura primaria (la secuencia de aminoácidos).
 
-La herramienta de aprendizaje automático que hemos utilizado en este estudio para abordar la predicción de la estructura secundaria a partir de la secuencia de aminoácidos es el algoritmo k-NN, que clasificará la estructura proteíca secundaria de nuevas secuencias tomando como referencia las k instancias que se aproximen con mayor similitud a la secuencia de aminoácidos nueva. A diferencia de otros algoritmos de machine learning este modelo no aprende nada por eso es llamado lazy learner. A pesar de la simplicidad del modelo sigue siendo muy utilizado a dia de hoy.
+La herramienta de aprendizaje automático que hemos utilizado en este estudio para abordar la predicción de la estructura secundaria a partir de la secuencia de aminoácidos es el algoritmo k-NN, que clasificará la estructura proteica secundaria de nuevas secuencias tomando como referencia las k instancias que se aproximen con mayor similitud a la secuencia de aminoácidos nueva. A diferencia de otros algoritmos de machine learning este modelo no aprende nada por eso es llamado lazy learner. A pesar de la simplicidad del modelo sigue siendo muy utilizado a día de hoy [@Wu2008].
 
 ### Datos
 
@@ -57,7 +58,7 @@ X<-datos[,-18]
 y<-factor(datos[,18], levels = c("_", "e", "h"), labels = c("coil", "Bsheet", "Ahelix"))
 ```
 
-Deberemos realizar una transformación categórica de los aminoácidos de tal forma que se genere una matriz de datos de 0 y 1 donde cada instancia será una matriz de 17x20 generando así 340 columnas (@tbl-resultados_one-hot_encoding). Antes de utilizar el one-hot encoding method (generando variables dummy o variables indicadoras) separamos la variable respuesta/independiente de la variables dependientes y usamos la libreria caret.
+Deberemos realizar una transformación categórica de los aminoácidos de tal forma que se genere una matriz de datos de 0 y 1 donde cada instancia será una matriz de 17x20 generando así 340 columnas (@tbl-resultados_one-hot_encoding). Antes de utilizar el one-hot encoding method (generando variables dummy o variables indicadoras) separamos la variable respuesta/independiente de la variables dependientes y usamos la librería caret.
 
 Factorizamos los aminoácidos por si existe algún aminoácido el cual no aparece en las secuencias obtenidas evitar que el one-hot encoding ignore ese aminoácido/variable.
 
@@ -131,6 +132,8 @@ kableExtra::kable() %>%
 kableExtra::kable_styling()
 ```
 
+Los resultados muestran que el modelo exhibe un rendimiento superior en la predicción de estructuras tipo "coil", mostrando una mayor sensibilidad que las otras clases. Por otro lado, aunque esta clase presenta una menor especificadad que las estructuras "Ahelix" y "Bsheet", sugiriendo que confunde estas clases con la clase "coil", esta última presenta muestra valores de precisión y recall mayores logrando un equilibrio alto de precisión/recall. Indicando de esta manera que el modelo tiende a clasificar correctamente la gran mayoría de estructuras, , con una gran fiabilidad (alta precisión).
+
 ```{r}
 probs <- predict(modelo, newdata = testX, type = "prob")
 ```
@@ -154,6 +157,8 @@ kableExtra::kable(
 kableExtra::kable_styling()
 ```
 
+El estadístico para evaluar el modelo más destacable es el área bajo la curva multiclase, mostrando un valor de 0.85. Ademas de presentar una alta Accuracy (0.77) y por tanto un bajo ratio de errores, también muestra un kappa de 0.6, indicando un acuerdo sustancial entre las predicciones del modelo y los verdaderos valores. Este último valor confirma que la exactitud obtenida no es fruto del azar y junto al valor del área bajo la curva refuerza la robustez dle modelo, demostrando una alta capacidad para distinguir estructuras.
+
 ```{r}
 #| label: fig-grafico
 #| fig-cap: "Analisis ROC Multiclase (1vs1)"
@@ -173,10 +178,12 @@ g +
        color = "Comparativa")
 ```
 
+Se muestra un gráfico comparando las curvas ROC de las clases comparadas una a una. Se aprecia que el modelo discierne mejor las estructuras de alfa hélice y los giros. En la siguiente tabla podemos apreciar el área bajo la curva de las tres curvas.
+
 ```{r}
 # Usamos un bucle para calcular el AUC de cada par
 aucs_individuales <- lapply(roc_multi$rocs, function(x) {
-  auc(x[[1]])
+  round(auc(x[[1]]),4)
 })
 
 # Le ponemos nombres para que sepas cuál es cuál
@@ -186,9 +193,19 @@ names(aucs_individuales) <- names(roc_multi$rocs)
 kable(table(aucs_individuales))
 ```
 
-###  
+Si es cierto que el modelo distingue mejor entre las alfa helices y los giros, no se observa que sufra al distinguir entre dos clases en concreto pues en la comparativa de los valores del área bajo la curva son similares (entre 0.84 y 0.86)
 
 ### Discusión
+
+limitaciones knn
+
+```{r}
+kable(modelo[["results"]])
+```
+
+problema de sesgo k=1
+
+a que se deben esos resultados y proponer metodos o alternativas a mejorar.
 
 ### Conclusiones
 

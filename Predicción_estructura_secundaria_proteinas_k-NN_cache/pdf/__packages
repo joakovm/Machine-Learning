@@ -1,7 +1,7 @@
+dplyr
+kableExtra
 ggplot2
 lattice
 caret
 ROCR
 pROC
-dplyr
-kableExtra
