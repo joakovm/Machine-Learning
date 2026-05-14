@@ -29,6 +29,10 @@ if(!require(caret)){
 install.packages("caret")
 library(caret)
 }
+if(!require(kknn)){
+install.packages("kknn")
+library(kknn)
+}
 if(!require(ROCR)){
 install.packages("ROCR")
 library(ROCR)
@@ -50,7 +54,7 @@ La herramienta de aprendizaje automático que hemos utilizado en este estudio pa
 
 ### Datos
 
-Los datos han sido obtenidos del repositorio de machine learning UC Irvine, Molecular Biology (Protein Secondary Structure) y provienen del repositorio connectionist bench del CMU. Los datos de las secuencias se presentan en ventanas deslizantes, teniendo cada instancia 17 ventanas con aminoacidos.
+Los datos han sido obtenidos del repositorio de machine learning UC Irvine, Molecular Biology (Protein Secondary Structure) y provienen del repositorio connectionist bench del CMU. Los datos de las secuencias se presentan en ventanas deslizantes, teniendo cada instancia 17 ventanas con aminoacidos [@Cost1993].
 
 ```{r}
 datos<-read.csv2("data4.csv", header = TRUE)
@@ -86,7 +90,7 @@ Es necesario determinar el número de puntos (k) a tener en cuenta para clasific
 
 #### Diseño experimental
 
-Particionamos los datos en trainx, trainy, testx, testy mediante la función createDataPartition del paquete caret indicando que el 70% de los datos sean el train y el 30% el test. La elección de estos parámetros busca proporcionar suficientes datos para que el modelo aprenda los patrones y una procentaje representativo para validar la capacidad del modelo. Para generar nuestro modelo también usaremos la herramienta "cross validation" que nos permite dividir nuestros datos de entrenamiento en k pliegues (10 en nuestro caso, el estándar) y de tal forma que el modelo aprende con k-1 pliegues y lo enfrenta al pliegue restante. El proceso se hace de forma iterativa rotando sucesivamente los k-1 pliegues y el pliegue restante.
+Particionamos los datos en trainx, trainy, testx, testy mediante la función createDataPartition del paquete caret indicando que el 70% de los datos sean el train y el 30% el test. La elección de estos parámetros busca proporcionar suficientes datos para que el modelo aprenda los patrones y una procentaje representativo para validar la capacidad del modelo. Para generar nuestro modelo también usaremos la herramienta "cross validation" que nos permite dividir nuestros datos de entrenamiento en k pliegues (5 en nuestro caso) y de tal forma que el modelo aprende con k-1 pliegues y lo enfrenta al pliegue restante. El proceso se hace de forma iterativa rotando sucesivamente los k-1 pliegues y el pliegue restante.
 
 ```{r}
 set.seed(143)
@@ -98,8 +102,32 @@ testy <- y[-trainIndex]
 ```
 
 ```{r}
-control<-trainControl(method="cv", number=10, classProbs = TRUE)
-modelo <- train(x=trainX, y=trainy, method = "knn", trControl = control, tuneGrid = data.frame(k = c(1, 3, 5)))
+#| message: false
+#| warning: false
+if(!require(doParallel)){
+  install.packages("doParallel")
+  library(doParallel)
+}
+num_cores <- parallel::detectCores() - 1
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+```
+
+```{r}
+data_total <- data.frame(y = trainy, trainX)
+
+# kknn tiene su propia validación cruzada interna mucho más rápida
+modelo<- train.kknn(
+  y ~ ., 
+  data = data_total, 
+  ks = c(3, 7, 21),          # Tus valores de k
+  distance = 1,             # Manhattan
+  kernel = "optimal"
+)
+```
+
+```{r}
+parallel::stopCluster(cl)
 ```
 
 Hemos probado tres valores diferentes de k (1, 3 y 5) puesto que el algoritmo knn suele alcanzar un equilibrio óptimo a valores más pequeños de k, obteniendo un rendimiento mayor a k=1. Para evitar que el modelo obtenga valores igualados de dos clases diferentes se tiende a usar valores impares.
@@ -197,15 +225,15 @@ Si es cierto que el modelo distingue mejor entre las alfa helices y los giros, n
 
 ### Discusión
 
-limitaciones knn
+El algoritmo k-NN a pesar de ser simple y efectivo, no produce un modelo por lo que su habilidad para entender, relacionar y clasificar instancias dada ciertas características es limitada. Otra debilidad de este algoritmo consiste en la selección de un k apropiado. Encontrar el equilibrio entre sobreajustar el modelo y que generalice demasiado se puede llegar a complicar y es conocido como "bias-variance tradoff" [@Lantz2019].
 
-```{r}
-kable(modelo[["results"]])
-```
+Aunque nuestro modelo obtenía mejores resultados, una mejor precisión y un mejor estadístico kappa, cuando se entrenaba el modelo usando un k igual a 1, usar un solo vecino cercano acarrea el riesgo de que la clasificación se vea comprometido por valores atípicos. Lo ideal sería encontrar un valor de k ni muy grande para evitar que la clasificación sea la de la clase más común ni demasiado pequeño como para que datos ruidosos influyan en la clasificación de instancias. Además de la elección de k, otras consideraciones han de tenerse en cuenta a la hora de analizar nuestros resultados.
 
-problema de sesgo k=1
+La métrica de distancia utilizada fue la euclidiana por ser la que se usa tradicionalmente el algoritmo k-NN, aunque también se podría haber utilizado **la distancia Manhattan o de Hamming.** Para usar la distancia euclidiana, preprocesamos los datos y utilizamos variables dummy o el método one-hot, encoding. Con este método obtuvimos una matriz de 10000x340, es decir, con una alta dimensionalidad dificultando al modelo discriminar estructuras. Finalmente, podemos observar que en nuestro caso la clase mayoritaria son las estructuras tipo "coil" siendo el doble que las alfa helices y el triple de las hojas beta, por lo que es probable esperar que al analizar el modelo por clases obtenga mejores resultados la clase tipo "coil", siendo más probable que el modelo clasifique una estructura nueva en esta clase.
 
-a que se deben esos resultados y proponer metodos o alternativas a mejorar.
+Los resultados obtenidos muestran una precisión y un área bajo la curva alrededor de 0.8, indicando un que el modelo rinde y clasifica estucturas de forma correcta en una gran mayoría de casos. Cabe mencionar que a pesar de estos dos estadísticos, el valor de kappa es relativamente menor, rondando 0.6.
+
+A pesar de que el modelo sea eficiente en la predicción y clasificación de estructuras secundarias, una precisión de 0.8 puede no ser suficiente en el campo de la biología estructural en el que incluso la posición de un aminoácido o su interacción con los aminoácidos adyacentes (y/o lejanos aunque estemos hablando de estructuras secundarias y no terciarias) afecta a la unión de diferentes ligandos.
 
 ### Conclusiones
 
